@@ -195,8 +195,6 @@ export default function App() {
             <Lock className="w-3 h-3" />
             <span>End-to-End Encrypted</span>
           </div>
-          <div className="w-1 h-1 bg-slate-800 rounded-full" />
-          <span>Demo Environment</span>
         </div>
       </motion.div>
 
