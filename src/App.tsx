@@ -2,52 +2,83 @@ import { useState, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, ShieldAlert, Smartphone, ArrowRight, Loader2, Lock, CheckCircle2 } from 'lucide-react';
 
-interface CheckResult {
-  status: 'success' | 'error';
+type Status = 'success' | 'error' | 'vulnerable';
+
+interface Result {
+  status: Status;
   message: string;
   details?: string;
 }
 
 export default function App() {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<CheckResult | null>(null);
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [securing, setSecuring] = useState(false);
+  const [result, setResult] = useState<Result | null>(null);
 
-  const handleCheck = async (e: FormEvent) => {
+  async function secureDevice() {
+    setSecuring(true);
+    try {
+      const res = await fetch('/api/secure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: phone }),
+      });
+      const data = await res.json();
+      await new Promise(r => setTimeout(r, 1500));
+      setResult(data);
+    } catch {
+      setResult({ status: 'error', message: 'Failed to secure the device.' });
+    } finally {
+      setSecuring(false);
+    }
+  }
+
+  async function runCheck(e: FormEvent) {
     e.preventDefault();
-    if (!phoneNumber.trim()) return;
+    if (!phone.trim()) return;
 
-    setIsLoading(true);
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      setResult({ status: 'error', message: 'Invalid phone number. Please enter at least 10 digits.' });
+      return;
+    }
+
+    setLoading(true);
     setResult(null);
 
     try {
-      const response = await fetch('/api/check', {
+      const res = await fetch('/api/check', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phoneNumber }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: phone }),
       });
-
-      const data = await response.json();
-      
-      // Artificial delay for "scanning" effect
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      const data = await res.json();
+      await new Promise(r => setTimeout(r, 1500));
       setResult(data);
-    } catch (error) {
-      setResult({
-        status: 'error',
-        message: 'Failed to connect to security server.',
-      });
+    } catch {
+      setResult({ status: 'error', message: 'Failed to connect to security server.' });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }
+
+  function getStatusStyles(status: Status) {
+    switch (status) {
+      case 'success': return { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', iconBg: 'bg-emerald-500/20' };
+      case 'vulnerable': return { bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-400', iconBg: 'bg-amber-500/20' };
+      default: return { bg: 'bg-rose-500/10', border: 'border-rose-500/20', text: 'text-rose-400', iconBg: 'bg-rose-500/20' };
+    }
+  }
+
+  function StatusIcon({ status }: { status: Status }) {
+    if (status === 'success') return <CheckCircle2 className="w-6 h-6 text-emerald-400" />;
+    if (status === 'vulnerable') return <ShieldAlert className="w-6 h-6 text-amber-400" />;
+    return <ShieldAlert className="w-6 h-6 text-rose-400" />;
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-indigo-900 via-slate-950 to-black flex flex-col items-center justify-center p-4 font-sans">
-      {/* Background Decorative Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[120px]" />
@@ -59,7 +90,6 @@ export default function App() {
         transition={{ duration: 0.6 }}
         className="w-full max-w-md relative z-10"
       >
-        {/* Header Section */}
         <div className="text-center mb-8">
           <motion.div
             initial={{ scale: 0.8 }}
@@ -69,21 +99,14 @@ export default function App() {
           >
             <ShieldCheck className="w-10 h-10 text-indigo-400" />
           </motion.div>
-          <h1 className="text-4xl font-display font-bold tracking-tight text-white mb-3">
-            Security Checker
-          </h1>
-          <p className="text-slate-400 text-lg">
-            Verify your mobile device's protection against clickjacking attacks.
-          </p>
+          <h1 className="text-4xl font-display font-bold tracking-tight text-white mb-3">Security Checker</h1>
+          <p className="text-slate-400 text-lg">Verify your mobile device's protection against clickjacking attacks.</p>
         </div>
 
-        {/* Main Card */}
         <div className="bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
-          <form onSubmit={handleCheck} className="space-y-6">
+          <form onSubmit={runCheck} className="space-y-6">
             <div className="space-y-2">
-              <label htmlFor="phone" className="text-sm font-medium text-slate-300 ml-1">
-                Phone Number
-              </label>
+              <label htmlFor="phone" className="text-sm font-medium text-slate-300 ml-1">Phone Number</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Smartphone className="h-5 w-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
@@ -92,8 +115,8 @@ export default function App() {
                   id="phone"
                   type="tel"
                   placeholder="Enter phone number..."
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   className="block w-full pl-11 pr-4 py-4 bg-slate-950/50 border border-white/10 rounded-2xl text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all"
                   required
                 />
@@ -102,10 +125,10 @@ export default function App() {
 
             <button
               type="submit"
-              disabled={isLoading || !phoneNumber.trim()}
+              disabled={loading || !phone.trim()}
               className="w-full relative overflow-hidden group bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:cursor-not-allowed text-white font-semibold py-4 rounded-2xl transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
             >
-              {isLoading ? (
+              {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span>Analyzing Security...</span>
@@ -119,7 +142,6 @@ export default function App() {
             </button>
           </form>
 
-          {/* Results Area */}
           <AnimatePresence mode="wait">
             {result && (
               <motion.div
@@ -128,41 +150,46 @@ export default function App() {
                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
                 className="overflow-hidden"
               >
-                <div className={`p-6 rounded-2xl border ${
-                  result.status === 'success' 
-                    ? 'bg-emerald-500/10 border-emerald-500/20' 
-                    : 'bg-rose-500/10 border-rose-500/20'
-                }`}>
-                  <div className="flex items-start gap-4">
-                    <div className={`mt-1 p-2 rounded-full ${
-                      result.status === 'success' ? 'bg-emerald-500/20' : 'bg-rose-500/20'
-                    }`}>
-                      {result.status === 'success' ? (
-                        <CheckCircle2 className={`w-6 h-6 ${result.status === 'success' ? 'text-emerald-400' : 'text-rose-400'}`} />
-                      ) : (
-                        <ShieldAlert className="w-6 h-6 text-rose-400" />
-                      )}
+                {(() => {
+                  const styles = getStatusStyles(result.status);
+                  return (
+                    <div className={`p-6 rounded-2xl border ${styles.bg} ${styles.border}`}>
+                      <div className="flex items-start gap-4">
+                        <div className={`mt-1 p-2 rounded-full ${styles.iconBg}`}>
+                          <StatusIcon status={result.status} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className={`font-bold text-lg ${styles.text}`}>{result.message}</h3>
+                          {result.details && <p className="text-slate-400 mt-1 text-sm leading-relaxed">{result.details}</p>}
+                          {result.status === 'vulnerable' && (
+                            <button
+                              onClick={secureDevice}
+                              disabled={securing}
+                              className="mt-4 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl transition-all flex items-center gap-2"
+                            >
+                              {securing ? (
+                                <>
+                                  <Loader2 className="w-5 h-5 animate-spin" />
+                                  <span>Securing Device...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ShieldCheck className="w-5 h-5" />
+                                  <span>Make Secure</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className={`font-bold text-lg ${
-                        result.status === 'success' ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        {result.message}
-                      </h3>
-                      {result.details && (
-                        <p className="text-slate-400 mt-1 text-sm leading-relaxed">
-                          {result.details}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Footer Info */}
         <div className="mt-8 flex items-center justify-center gap-6 text-slate-500 text-xs uppercase tracking-widest font-semibold">
           <div className="flex items-center gap-2">
             <Lock className="w-3 h-3" />
@@ -173,7 +200,6 @@ export default function App() {
         </div>
       </motion.div>
 
-      {/* Educational Tooltip/Section */}
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
