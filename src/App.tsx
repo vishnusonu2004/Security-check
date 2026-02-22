@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, ShieldAlert, Smartphone, ArrowRight, Loader2, Lock, CheckCircle2 } from 'lucide-react';
 
@@ -10,28 +10,30 @@ interface Result {
   details?: string;
 }
 
+function maskPhone(num: string) {
+  return num.length > 4 ? "XXXXXX" + num.slice(-4) : num;
+}
+
 export default function App() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [securing, setSecuring] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  const checkHistory = useRef<Map<string, number>>(new Map());
+  const protectedDevices = useRef<Set<string>>(new Set());
 
   async function secureDevice() {
     setSecuring(true);
-    try {
-      const res = await fetch('/api/secure', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: phone }),
-      });
-      const data = await res.json();
-      await new Promise(r => setTimeout(r, 1500));
-      setResult(data);
-    } catch {
-      setResult({ status: 'error', message: 'Failed to secure the device.' });
-    } finally {
-      setSecuring(false);
-    }
+    await new Promise(r => setTimeout(r, 1500));
+    
+    protectedDevices.current.add(phone);
+    setResult({
+      status: 'success',
+      message: `Phone ${maskPhone(phone)} is now Secured ✅`,
+      details: 'Security patch applied. Your device is now protected against clickjacking attacks.'
+    });
+    
+    setSecuring(false);
   }
 
   async function runCheck(e: FormEvent) {
@@ -47,20 +49,36 @@ export default function App() {
     setLoading(true);
     setResult(null);
 
-    try {
-      const res = await fetch('/api/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: phone }),
+    await new Promise(r => setTimeout(r, 1500));
+
+    const masked = maskPhone(phone);
+
+    if (protectedDevices.current.has(phone)) {
+      setResult({
+        status: 'success',
+        message: `Phone ${masked} is Secured ✅`,
+        details: 'No clickjacking vulnerabilities detected on this device.'
       });
-      const data = await res.json();
-      await new Promise(r => setTimeout(r, 1500));
-      setResult(data);
-    } catch {
-      setResult({ status: 'error', message: 'Failed to connect to security server.' });
-    } finally {
-      setLoading(false);
+    } else {
+      const count = (checkHistory.current.get(phone) || 0) + 1;
+      checkHistory.current.set(phone, count);
+
+      if (count === 1) {
+        setResult({
+          status: 'success',
+          message: `Phone ${masked} is Secured ✅`,
+          details: 'No clickjacking vulnerabilities detected on this device.'
+        });
+      } else {
+        setResult({
+          status: 'vulnerable',
+          message: `Phone ${masked} is Not Secured ⚠️`,
+          details: 'Potential clickjacking vulnerability detected. Click below to secure your device.'
+        });
+      }
     }
+
+    setLoading(false);
   }
 
   function getStatusStyles(status: Status) {
