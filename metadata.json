@@ -1,5 +1,5 @@
 {
   "name": "Phone Security Checker",
-  "description": "A professional clickjacking demo application that checks mobile device security status.",
+  "description": "A professional application that checks mobile device security status.",
   "requestFramePermissions": []
 }
